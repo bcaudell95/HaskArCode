@@ -24,6 +24,9 @@ instance Functor Prob where
 sortProb :: (Ord a) => (Prob a) -> (Prob a)
 sortProb (Prob items) = Prob $ sortBy (\ a b -> compare (fst a) (fst b)) items
 
+widthOfInterval :: Interval -> Rational
+widthOfInterval (a,b) = b - a
+
 -- Arithmetic coding operations
 type Interval = (Rational, Rational)
 type IntervalMap a = M.Map a Interval
@@ -33,16 +36,31 @@ distToUnitMap :: (Ord a) => (Prob a) -> IntervalMap a
 distToUnitMap (Prob []) = M.empty
 distToUnitMap (Prob ((k,f):xs)) = M.union (M.singleton k (0, f)) (fmap (\(a,b) -> (a+f, b+f)) (distToUnitMap (Prob xs)))
 
-applyIntervalToMap :: (Ord a) => Interval -> IntervalMap a -> IntervalMap a
-applyIntervalToMap (start, end) m = fmap (\(a,b) -> (start + (width*a), start + (width*b))) m 
-    where width = (end - start) / ((\ (a,b) -> b - a) . unionOfIntervals . M.elems $ m)
-
 -- Function assumes that the first item in the list is the first interval, the last item is the last interval, and they are adjacent
 unionOfIntervals :: [Interval] -> Interval
 unionOfIntervals intervals = (fst . head $ intervals, snd . last $ intervals)
+
+unionOfMap :: (IntervalMap a) -> Interval
+unionOfMap = unionOfIntervals . M.elems
+
+-- Scales up or down an IntervalMap to cover a given interval
+applyIntervalToMap :: (Ord a) => Interval -> IntervalMap a -> IntervalMap a
+applyIntervalToMap new@(newStart, newEnd) m = fmap (\(a,b) -> (mapOldPoint a, mapOldPoint b)) m 
+    where newWidth = widthOfInterval new
+          oldInterval@(oldStart, oldEnd) = unionOfMap m
+          oldWidth = widthOfInterval oldInterval
+          mapOldPoint = (\a -> newStart + (newWidth / oldWidth*(a - oldStart)))
 
 encodeToInterval :: (Ord a) => [a] -> IntervalMap a -> Interval
 encodeToInterval (x:xs) m = encodeToInterval xs (applyIntervalToMap (unjust mi) m) 
     where mi = M.lookup x m
           unjust = (\ (Just a) -> a)
 encodeToInterval [] m = unionOfIntervals . M.elems $ m
+
+
+-- sample maps and testing code
+p :: Prob Char
+p = Prob [('a', 1 % 4), ('b', 1 % 4), ('c', 1 % 2)]
+
+m :: IntervalMap Char
+m = distToUnitMap p

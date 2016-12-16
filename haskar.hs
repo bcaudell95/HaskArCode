@@ -3,6 +3,7 @@
 import Data.List
 import Data.Ratio
 import qualified Data.Map as M
+import Data.BitString
 
 -- A basic type for a probability distribution and a constructor and instances for it
 data Prob a = Prob [(a, Rational)]
@@ -56,6 +57,22 @@ encodeToInterval (x:xs) m = encodeToInterval xs (applyIntervalToMap (unjust mi) 
     where mi = M.lookup x m
           unjust = (\ (Just a) -> a)
 encodeToInterval [] m = unionOfIntervals . M.elems $ m
+
+-- Encoding to a BitString
+encodeToBitString :: Interval -> BitString
+encodeToBitString = fromList . fst . (phaseOne [] (0 % 1, 1 % 1))
+
+-- Phase one - while the target interval is contained in either half of the current interval, select that half and recurse, building a list of paths taken
+phaseOne :: [Bool] -> Interval -> Interval -> ([Bool], Interval)
+phaseOne currString currInterval target
+    | (snd target) < midpoint = phaseOne (currString ++ [False]) (fst currInterval, midpoint) target
+    | midpoint < (fst target) = phaseOne (currString ++ [True]) (midpoint, snd currInterval) target
+    | otherwise = (currString, currInterval)
+    where midpoint = ((fst currInterval) + (snd currInterval)) / 2
+
+-- Phase two takes a target interval that straddles the midpoint of the current interval and expands the ''middle'' part of the current interval
+--      until either of the middle quartile ranges is contained within the target interval.  It returns the number of expansions and a flag to indicate
+--      which quartile was eventually chosen.
 
 
 -- sample maps and testing code

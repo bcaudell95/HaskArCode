@@ -3,7 +3,7 @@
 import Data.List
 import Data.Ratio
 import qualified Data.Map as M
-import Data.BitString
+import qualified Data.BitString as BS
 
 -- A basic type for a probability distribution and a constructor and instances for it
 data Prob a = Prob [(a, Rational)]
@@ -59,8 +59,11 @@ encodeToInterval (x:xs) m = encodeToInterval xs (applyIntervalToMap (unjust mi) 
 encodeToInterval [] m = unionOfIntervals . M.elems $ m
 
 -- Encoding to a BitString
-encodeToBitString :: Interval -> BitString
-encodeToBitString = fromList . fst . (phaseOne [] (0 % 1, 1 % 1))
+-- TODO: turn this to point-free, likely using Applicative magic
+encodeToBitString :: Interval -> BS.BitString
+encodeToBitString target = BS.fromList $ (fst phaseOneResult) ++ phaseTwoResult
+    where phaseOneResult = phaseOne [] (0 % 1, 1 % 1) target
+          phaseTwoResult = phaseTwoOutput $ phaseTwo (snd phaseOneResult) target
 
 -- Phase one - while the target interval is contained in either half of the current interval, select that half and recurse, building a list of paths taken
 phaseOne :: [Bool] -> Interval -> Interval -> ([Bool], Interval)
@@ -73,7 +76,18 @@ phaseOne currString currInterval target
 -- Phase two takes a target interval that straddles the midpoint of the current interval and expands the ''middle'' part of the current interval
 --      until either of the middle quartile ranges is contained within the target interval.  It returns the number of expansions and a flag to indicate
 --      which quartile was eventually chosen.
+data QuartileChoice = Q2 | Q3 deriving Show
+phaseTwo :: Interval -> Interval -> (QuartileChoice, Int)
+phaseTwo currInterval target
+    | (fst target) <= q1 = (Q2, 0)
+    | q3 <= (snd target) = (Q3, 0)
+    | otherwise = fmap (+1) $ phaseTwo (q1, q3) target
+    where q1 = ((widthOfInterval currInterval) / 4) + (fst currInterval)
+          q3 = q1 + ((widthOfInterval currInterval) / 2)
 
+phaseTwoOutput :: (QuartileChoice, Int) -> [Bool]
+phaseTwoOutput (Q2, count) = [False] ++ (take (count+1) $ repeat True)
+phaseTwoOutput (Q3, count) = [True] ++ (take (count+1) $ repeat False)
 
 -- sample maps and testing code
 p :: Prob Char

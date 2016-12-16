@@ -5,6 +5,10 @@ import Data.Ratio
 import qualified Data.Map as M
 import qualified Data.BitString as BS
 
+-- Main encoding function
+arithmeticEncode :: (Ord a) => UnitMap a -> [a] -> BS.BitString
+arithmeticEncode mapping = encodeToBitString . ((flip encodeToInterval) mapping)
+
 -- A basic type for a probability distribution and a constructor and instances for it
 data Prob a = Prob [(a, Rational)]
 
@@ -91,7 +95,7 @@ phaseTwoOutput (Q3, count) = [True] ++ (take (count+1) $ repeat False)
 
 -- sample maps and testing code
 p :: Prob Char
-p = Prob [('a', 1 % 4), ('b', 1 % 4), ('c', 1 % 2)]
+p = Prob [('a', 3 % 5), ('b', 1 % 5), ('c', 1 % 10), ('d', 1 % 10)]
 
 m :: IntervalMap Char
 m = distToUnitMap p

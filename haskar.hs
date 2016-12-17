@@ -6,10 +6,6 @@ import qualified Data.Map as M
 import qualified Data.BitString as BS
 import qualified Data.Bits as B
 
--- Main encoding function
-arithmeticEncode :: (Ord a) => UnitMap a -> [a] -> BS.BitString
-arithmeticEncode mapping = encodeToBitString . ((flip encodeToInterval) mapping)
-
 -- A basic type for a probability distribution and a constructor and instances for it
 data Prob a = Prob [(a, Rational)]
 
@@ -33,7 +29,18 @@ sortProb (Prob items) = Prob $ sortBy (\ a b -> compare (fst a) (fst b)) items
 widthOfInterval :: Interval -> Rational
 widthOfInterval (a,b) = b - a
 
+-- Now we can generalize this type to a general probability model that depends on past inputs
+-- In this model format, the likelihood of the next symbol is calculated as a funciton of the previous string
+type Model a = ([a] -> Prob a)
+
+basicModel :: Prob a -> Model a
+basicModel = const
+
 -- Arithmetic coding operations
+-- Main encoding function
+arithmeticEncode :: (Ord a) => Model a -> [a] -> BS.BitString
+arithmeticEncode model str = encodeToBitString $ encodeWithModel [] str model (0 % 1, 1 % 1) 
+
 type Interval = (Rational, Rational)
 type IntervalMap a = M.Map a Interval
 type UnitMap a = IntervalMap a
@@ -57,11 +64,11 @@ applyIntervalToMap new@(newStart, newEnd) m = fmap (\(a,b) -> (mapOldPoint a, ma
           oldWidth = widthOfInterval oldInterval
           mapOldPoint = (\a -> newStart + (newWidth / oldWidth*(a - oldStart)))
 
-encodeToInterval :: (Ord a) => [a] -> IntervalMap a -> Interval
-encodeToInterval (x:xs) m = encodeToInterval xs (applyIntervalToMap (unjust mi) m) 
-    where mi = M.lookup x m
-          unjust = (\ (Just a) -> a)
-encodeToInterval [] m = unionOfIntervals . M.elems $ m
+encodeWithModel :: (Ord a) => [a] -> [a] -> Model a -> Interval -> Interval
+encodeWithModel _ [] _ curr = curr
+encodeWithModel prev (this:rest) model currInterval = encodeWithModel (prev ++ [this]) rest model newInterval
+    where prob = model prev
+          newInterval = (\(Just a) -> a) $ M.lookup this $ applyIntervalToMap currInterval $ distToUnitMap prob
 
 -- Encoding to a BitString
 -- TODO: turn this to point-free, likely using Applicative magic
@@ -131,3 +138,11 @@ p = Prob [('a', 3 % 5), ('b', 1 % 5), ('c', 1 % 10), ('d', 1 % 10)]
 
 m :: IntervalMap Char
 m = distToUnitMap p
+
+-- More complex probability model used in the report
+p2 :: Model Char
+p2 [] = Prob $ map (\a -> (a, 1 % 5)) "abcde"
+p2 cs = sortProb . Prob $ (++) [(c, 1 % 2)] $ map (\a -> (a, 1 % 8)) rest
+    where c = last cs
+          rest = delete c "abcde" 
+

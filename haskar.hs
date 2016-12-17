@@ -112,17 +112,18 @@ bitStringToInteger bs = sum $ zipWith (\bit pow -> (boolToInt bit) * (B.shiftL 1
 bitStringToRational :: BS.BitString -> Rational
 bitStringToRational bs = (bitStringToInteger bs % B.shiftL 1 (fromIntegral (BS.length bs)))
 
-decodeBitStringToLength :: (Ord a) => BS.BitString -> UnitMap a -> Int -> [a]
-decodeBitStringToLength bs m len = decodeStringOfLength m (bitStringToRational bs) len
+decodeBitStringToLength :: (Ord a) => BS.BitString -> Model a -> Int -> [a]
+decodeBitStringToLength bs model len = decodeStringOfLength model (bitStringToRational bs) len
 
-decodeStringOfLength :: (Ord a) => UnitMap a -> Rational -> Int -> [a]
-decodeStringOfLength = decodeStringInInterval (0 % 1, 1 % 1)
+decodeStringOfLength :: (Ord a) => Model a -> Rational -> Int -> [a]
+decodeStringOfLength = decodeStringInInterval [] (0 % 1, 1 % 1)
 
-decodeStringInInterval :: (Ord a) => Interval -> UnitMap a -> Rational -> Int -> [a]
-decodeStringInInterval currInt symbolMap target counter
-    | counter == 0 = []
-    | otherwise = [sym] ++ (decodeStringInInterval nextInterval symbolMap target (counter - 1))
-        where (sym, nextInterval) = decodeSymbol symbolMap currInt target 
+decodeStringInInterval :: (Ord a) => [a] -> Interval -> Model a -> Rational -> Int -> [a]
+decodeStringInInterval prev currInt model target counter
+    | counter == 0 = prev
+    | otherwise = decodeStringInInterval (prev ++ [sym]) nextInterval model target (counter - 1)
+        where (sym, nextInterval) = decodeSymbol symbolMap currInt target
+              symbolMap = applyIntervalToMap currInt $ distToUnitMap $ model prev 
 
 decodeSymbol :: (Ord a) => UnitMap a -> Interval -> Rational -> (a, Interval)
 decodeSymbol symbolMap currInterval target = output

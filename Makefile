@@ -3,4 +3,4 @@ all:
 	cabal install bitstring
 	ghc -o arithmetic haskar.hs
 clean:
-	rm arithmetic
+	rm *.o *.hi arithmetic

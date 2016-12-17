@@ -4,6 +4,7 @@ import Data.List
 import Data.Ratio
 import qualified Data.Map as M
 import qualified Data.BitString as BS
+import qualified Data.Bits as B
 
 -- Main encoding function
 arithmeticEncode :: (Ord a) => UnitMap a -> [a] -> BS.BitString
@@ -92,6 +93,37 @@ phaseTwo currInterval target
 phaseTwoOutput :: (QuartileChoice, Int) -> [Bool]
 phaseTwoOutput (Q2, count) = [False] ++ (take (count+1) $ repeat True)
 phaseTwoOutput (Q3, count) = [True] ++ (take (count+1) $ repeat False)
+
+-- Decoder
+boolToInt :: Bool -> Integer
+boolToInt True = 1
+boolToInt False = 0
+
+bitStringToInteger :: BS.BitString -> Integer
+bitStringToInteger bs = sum $ zipWith (\bit pow -> (boolToInt bit) * (B.shiftL 1 pow)) (reverse . BS.toList $ bs) [0..] 
+
+bitStringToRational :: BS.BitString -> Rational
+bitStringToRational bs = (bitStringToInteger bs % B.shiftL 1 (fromIntegral (BS.length bs)))
+
+decodeBitStringToLength :: (Ord a) => BS.BitString -> UnitMap a -> Int -> [a]
+decodeBitStringToLength bs m len = decodeStringOfLength m (bitStringToRational bs) len
+
+decodeStringOfLength :: (Ord a) => UnitMap a -> Rational -> Int -> [a]
+decodeStringOfLength = decodeStringInInterval (0 % 1, 1 % 1)
+
+decodeStringInInterval :: (Ord a) => Interval -> UnitMap a -> Rational -> Int -> [a]
+decodeStringInInterval currInt symbolMap target counter
+    | counter == 0 = []
+    | otherwise = [sym] ++ (decodeStringInInterval nextInterval symbolMap target (counter - 1))
+        where (sym, nextInterval) = decodeSymbol symbolMap currInt target 
+
+decodeSymbol :: (Ord a) => UnitMap a -> Interval -> Rational -> (a, Interval)
+decodeSymbol symbolMap currInterval target = output
+    where items = M.toList . (applyIntervalToMap currInterval) $ symbolMap
+          output@(sym, newInterval) = (\(Just a) -> a) . (find $ (inInterval target) . snd) $ items  
+
+inInterval :: Rational -> Interval -> Bool
+inInterval target (a,b) = (a <= target) && (target <= b)
 
 -- sample maps and testing code
 p :: Prob Char

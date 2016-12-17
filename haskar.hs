@@ -147,3 +147,32 @@ p2 cs = sortProb . Prob $ (++) [(c, 1 % 2)] $ map (\a -> (a, 1 % 8)) rest
     where c = last cs
           rest = delete c "abcde" 
 
+-- UI for demo
+
+test :: Char -> String -> (Interval, BS.BitString, String)
+test 's' input = (int, bits, out)
+    where len = length input
+          model = basicModel p
+          int = encodeWithModel [] input model (0 % 1, 1 % 1) 
+          bits = encodeToBitString int
+          out = decodeBitStringToLength bits model len
+test 'c' input = (int, bits, out)
+    where len = length input
+          model = p2
+          int = encodeWithModel [] input model (0 % 1, 1 % 1) 
+          bits = encodeToBitString int
+          out = decodeBitStringToLength bits model len
+    
+
+main :: IO ()
+main = do 
+    putStrLn "Command: ([s]imple {a-d}* | [c]omplex {a-e}*)"
+    line <- getLine
+    let w = words line
+        (int, bits, out) = test ((w !! 0) !! 0) (w !! 1) 
+    putStrLn $ "Encoded Interval  : " ++ (show int)
+    putStrLn $ "BitString         : " ++ (show bits)
+    putStrLn $ "Decoded BitString : " ++ out
+    putStrLn $ if ((w !! 1) == out) then "Input matches output!" else "Input does not match output..."
+    return ()
+
